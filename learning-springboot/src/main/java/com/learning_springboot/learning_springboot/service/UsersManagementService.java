@@ -9,7 +9,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class UsersManagementService {
@@ -62,8 +65,9 @@ public class UsersManagementService {
             var refreshToken = jwtUtils.generateRefreshToken(new HashMap<>(), user);
             resp.setStatusCode(200);
             resp.setToken(jwt);
+            resp.setRole(user.getRole());
             resp.setRefreshToken(refreshToken);
-            resp.setExpirationTime("24hrs");
+            resp.setExpirationTime(String.valueOf(System.currentTimeMillis() + 86400000L)); // czas w ms za 24h
             resp.setMessage("Successful login");
             resp.setMyUsers(user);
 
@@ -85,7 +89,7 @@ public class UsersManagementService {
                 resp.setStatusCode(200);
                 resp.setToken(jwt);
                 resp.setRefreshToken(refreshRequest.getToken());
-                resp.setExpirationTime("24hrs");
+                resp.setExpirationTime(String.valueOf(System.currentTimeMillis() + 86400000L)); // czas w ms za 24h
                 resp.setMessage("Successful refresh");
             }
             resp.setStatusCode(200);
@@ -95,6 +99,111 @@ public class UsersManagementService {
             resp.setError(e.getMessage());
             return resp;
         }
+    }
+
+    public ReqRes getAllUsers() {
+        ReqRes resp = new ReqRes();
+
+        try {
+            List<MyUsers> result = usersRepo.findAll();
+            if (!result.isEmpty()) {
+                resp.setMyUsersList(result);
+                resp.setStatusCode(200);
+                resp.setMessage("Successfully retrieved all users");
+            } else {
+                resp.setStatusCode(404);
+                resp.setMessage("No users found");
+            }
+            return resp;
+        } catch (Exception e) {
+            resp.setStatusCode(500);
+            resp.setError(e.getMessage());
+            return resp;
+        }
+    }
+
+    public ReqRes getUserById(Integer id) {
+        ReqRes resp = new ReqRes();
+
+        try {
+            MyUsers userById = usersRepo.findById(id).orElseThrow();
+            resp.setMyUsers(userById);
+            resp.setStatusCode(200);
+            resp.setMessage("Successfully retrieved user with id "+id);
+        } catch (Exception e) {
+            resp.setStatusCode(500);
+            resp.setError(e.getMessage());
+        }
+        return resp;
+    }
+
+    public ReqRes deleteUser(Integer id) {
+        ReqRes resp = new ReqRes();
+
+        try {
+            Optional<MyUsers>  userOptional = usersRepo.findById(id);
+            if (userOptional.isPresent()) {
+                usersRepo.deleteById(id);
+                resp.setStatusCode(200);
+                resp.setMessage("Successfully deleted user with id "+id);
+            } else {
+                resp.setStatusCode(404);
+                resp.setMessage("No user found to delete with id "+id);
+            }
+        } catch (Exception e) {
+            resp.setStatusCode(500);
+            resp.setError(e.getMessage());
+        }
+        return resp;
+    }
+
+    public ReqRes updateUser(Integer userId, MyUsers updatedUser) {
+        ReqRes resp = new ReqRes();
+
+        try {
+            Optional<MyUsers>  userOptional = usersRepo.findById(userId);
+
+            if (userOptional.isPresent()) {
+                MyUsers existingUser = userOptional.get();
+                existingUser.setName(updatedUser.getName());
+                existingUser.setEmail(updatedUser.getEmail());
+                existingUser.setRole(updatedUser.getRole());
+
+                // check if password is in request
+                if (updatedUser.getPassword() != null && !updatedUser.getPassword().isEmpty()) {
+                    //encode the new password and update
+                    existingUser.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
+                }
+
+                MyUsers savedUser = usersRepo.save(existingUser);
+                resp.setMyUsers(savedUser);
+                resp.setStatusCode(200);
+                resp.setMessage("Successfully updated user with id "+userId);
+            } else {
+                resp.setStatusCode(404);
+                resp.setMessage("No user found to update with id "+userId);
+            }
+        } catch (Exception e) {
+            resp.setStatusCode(500);
+            resp.setError(e.getMessage());
+        }
+        return resp;
+    }
+
+    public ReqRes getMyInfo(String email) {
+        ReqRes resp = new ReqRes();
+        try {
+            Optional<MyUsers> userOptional = usersRepo.findByEmail(email);
+            if (userOptional.isPresent()) {
+                resp.setMyUsers(userOptional.get());
+                resp.setStatusCode(200);
+                resp.setMessage("Successfully retrieved user with email "+email);
+            }
+        } catch (Exception e) {
+            resp.setStatusCode(500);
+            resp.setError(e.getMessage());
+        }
+        return resp;
     }
 
 }

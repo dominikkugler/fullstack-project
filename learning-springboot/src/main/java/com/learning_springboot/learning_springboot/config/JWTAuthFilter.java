@@ -19,22 +19,28 @@ import java.io.IOException;
 
 @Component
 public class JWTAuthFilter extends OncePerRequestFilter {
-    private final JWTUtils jwtUtils;
 
-    private final MyUserDetailsService myUserDetailsService;
+    @Autowired
+    private JWTUtils jwtUtils;
 
-    public JWTAuthFilter(JWTUtils jwtUtils, MyUserDetailsService myUserDetailsService) {
-        this.jwtUtils = jwtUtils;
-        this.myUserDetailsService = myUserDetailsService;
-    }
+    @Autowired
+    private MyUserDetailsService myUserDetailsService;
+
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+
         final String authHeader = request.getHeader("Authorization");
         final String jwtToken;
         final String userEmail;
 
         if (authHeader == null || authHeader.isBlank()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (!authHeader.startsWith("Bearer ") || authHeader.length() <= 7) {
+            System.out.println("Authorization header niepoprawny lub za krótki: " + authHeader);
             filterChain.doFilter(request, response);
             return;
         }
@@ -46,7 +52,7 @@ public class JWTAuthFilter extends OncePerRequestFilter {
             UserDetails userDetails = myUserDetailsService.loadUserByUsername(userEmail);
 
             if (jwtUtils.isTokenValid(jwtToken, userDetails)) {
-                SecurityContext securityContext = SecurityContextHolder.getContext();
+                SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
                 UsernamePasswordAuthenticationToken token = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities()
                 );
